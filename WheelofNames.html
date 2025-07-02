@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wheel of Names</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for the pointer */
+        .pointer {
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #f1f5f9; /* slate-100 */
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.2));
+        }
+        /* Custom styles for the winner popup */
+        .winner-popup {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .winner-popup.hidden {
+            opacity: 0;
+            transform: scale(0.9);
+            pointer-events: none;
+        }
+        /* Fireworks canvas style */
+        #fireworksCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allows clicks to go through to the popup */
+            z-index: 40; /* Behind the popup (z-50) */
+        }
+        /* Custom scrollbar for winner list */
+        #winnerListContainer::-webkit-scrollbar {
+            width: 20px;
+        }
+        #winnerListContainer::-webkit-scrollbar-track {
+            background: #1e293b; /* slate-800 */
+        }
+        #winnerListContainer::-webkit-scrollbar-thumb {
+            background-color: #475569; /* slate-600 */
+            border-radius: 4px;
+            border: 2px solid #1e293b; /* slate-800 */
+        }
+        /* Styles for new popups */
+        .modal-popup {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .modal-popup.hidden {
+            opacity: 0;
+            transform: scale(0.9);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-800 text-white overflow-hidden">
+
+    <!-- Canvas for fireworks effect -->
+    <canvas id="fireworksCanvas"></canvas>
+
+    <div class="flex flex-col md:flex-row h-screen">
+        <!-- Main Content: Wheel -->
+        <main class="flex-1 flex items-center justify-center p-4 md:p-8 relative">
+            <div class="relative flex items-center justify-center max-w-full max-h-full overflow-hidden">
+                <div class="pointer"></div>
+                <!-- Wheel canvas with fixed size -->
+                <canvas id="wheelCanvas" width="850" height="850" class="cursor-pointer rounded-full"></canvas>
+            </div>
+        </main>
+
+        <!-- Sidebar: Entries -->
+        <aside class="w-full md:w-80 bg-gray-900 p-6 flex flex-col overflow-y-auto">
+            <div class="space-y-6 flex-1 flex flex-col min-h-0">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-300 mb-2">Daftar Nama</h2>
+                    <div class="h-48">
+                        <textarea id="nameInput" class="w-full h-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-slate-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Masukkan nama, satu per baris..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="flex-1 flex flex-col min-h-0">
+                    <h2 class="text-xl font-bold text-slate-300 mb-2">Daftar Pemenang</h2>
+                    <div id="winnerListContainer" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg p-3 overflow-y-auto">
+                        <ol id="winnerList" class="list-decimal list-inside text-slate-300 space-y-1"></ol>
+                    </div>
+                </div>
+
+                <!-- New buttons for winner list management -->
+                <div class="flex flex-col space-y-2">
+                    <button id="clearWinnerListBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Bersihkan</button>
+                    <button id="restoreWinnersBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Ulangi</button>
+                </div>
+
+                <div class="space-y-2">
+                    <label for="spinTimeSelect" class="font-bold text-slate-400">Durasi Putaran</label>
+                    <select id="spinTimeSelect" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="50000">5 Detik</option>
+                        <option value="70000" selected>10 Detik</option>
+                        <option value="90000">20 Detik</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <label for="backgroundImageInput" class="font-bold text-slate-400">URL Gambar Latar Belakang</label>
+                    <input type="text" id="backgroundImageInput" placeholder="Contoh: https://placehold.co/150x150" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <!-- FAQ and Terms & Conditions links -->
+            <div class="text-xs text-gray-500 mt-6 flex flex-col space-y-1">
+                <a href="#" id="faqLink" class="text-blue-400 hover:text-blue-300 underline">FAQ (Cara Penggunaan)</a>
+                <a href="#" id="termsLink" class="text-blue-400 hover:text-blue-300 underline">Syarat & Ketentuan</a>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Winner Popup Modal -->
+    <div id="winnerPopup" class="winner-popup hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-gray-700 rounded-xl shadow-2xl p-8 text-center max-w-sm mx-auto transform transition-all">
+            <h2 class="text-2xl font-bold mb-4 text-slate-100">Selamat Kepada:</h2>
+            <p id="winnerName" class="text-5xl font-black text-yellow-400 mb-6 break-words"></p>
+            <div class="flex justify-center space-x-4">
+                <button id="removeWinnerBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Hapus</button>
+                <button id="closePopup" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Pertahankan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FAQ Popup Modal -->
+    <div id="faqPopup" class="modal-popup hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-gray-700 rounded-xl shadow-2xl p-8 max-w-xl mx-auto transform transition-all overflow-y-auto max-h-[90vh]">
+            <h2 class="text-2xl font-bold mb-4 text-slate-100">FAQ (Pertanyaan Umum)</h2>
+            <div class="text-slate-200 space-y-4">
+                <h3 class="font-bold text-lg">Cara Penggunaan Roda Nama:</h3>
+                <ol class="list-decimal list-inside space-y-2">
+                    <li>**Memasukkan Nama:** Di sisi kanan, Anda akan melihat kotak teks "Daftar Nama". Masukkan nama-nama yang ingin Anda sertakan di roda, pisahkan setiap nama dengan baris baru (tekan Enter setelah setiap nama).</li>
+                    <li>**Menyesuaikan Durasi Putaran:** Pilih durasi putaran roda dari dropdown "Durasi Putaran".</li>
+                    <li>**Menambahkan Gambar Latar Belakang:** Anda dapat memasukkan URL gambar di kolom "URL Gambar Latar Belakang" untuk menambahkan gambar di tengah roda.</li>
+                    <li>**Memutar Roda:** Klik di mana saja pada roda di sisi kiri untuk memulainya berputar.</li>
+                    <li>**Melihat Pemenang:** Setelah roda berhenti, nama pemenang akan muncul di popup.</li>
+                    <li>**Mengelola Pemenang:**
+                        <ul>
+                            <li>**Hapus:** Klik "Hapus" di popup pemenang untuk menghapus nama pemenang dari daftar nama utama.</li>
+                            <li>**Pertahankan:** Klik "Pertahankan" untuk menutup popup dan menjaga nama pemenang tetap ada di daftar nama utama.</li>
+                            <li>**Bersihkan Daftar Pemenang:** Gunakan tombol ini untuk mengosongkan daftar pemenang yang telah tercatat.</li>
+                            <li>**Kembalikan Pemenang ke Daftar Nama:** Tombol ini akan menambahkan kembali semua nama dari daftar pemenang ke daftar nama utama (jika belum ada) dan mengosongkan daftar pemenang.</li>
+                        </ul>
+                    </li>
+                    <li>**Putaran Siaga:** Roda akan berputar perlahan secara otomatis saat tidak digunakan.</li>
+                </ol>
+                <h3 class="font-bold text-lg">Apakah saya bisa menyimpan daftar nama?</h3>
+                <p>Saat ini, aplikasi tidak memiliki fitur untuk menyimpan daftar nama secara permanen. Nama akan hilang jika Anda menutup atau me-refresh halaman.</p>
+                <h3 class="font-bold text-lg">Bagaimana cara mengubah ukuran roda?</h3>
+                <p>Ukuran roda saat ini ditetapkan pada 850px untuk memastikan pengalaman yang konsisten di berbagai perangkat.</p>
+            </div>
+            <div class="flex justify-center mt-6">
+                <button id="closeFaqPopup" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms & Conditions Popup Modal -->
+    <div id="termsPopup" class="modal-popup hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-gray-700 rounded-xl shadow-2xl p-8 max-w-xl mx-auto transform transition-all overflow-y-auto max-h-[90vh]">
+            <h2 class="text-2xl font-bold mb-4 text-slate-100">Syarat & Ketentuan</h2>
+            <div class="text-slate-200 space-y-4">
+                <p>Selamat datang di Aplikasi Roda Nama! Dengan menggunakan aplikasi ini, Anda setuju untuk mematuhi syarat dan ketentuan berikut:</p>
+                <ul class="list-disc list-inside space-y-2">
+                    <li>**Penggunaan Aplikasi:** Aplikasi ini disediakan untuk tujuan hiburan dan pengambilan keputusan acak.</li>
+                    <li>**Konten Pengguna:** Anda bertanggung jawab penuh atas nama atau gambar yang Anda masukkan ke dalam aplikasi. Pastikan konten tersebut tidak melanggar hukum atau hak cipta pihak ketiga.</li>
+                    <li>**Penafian Garansi:** Aplikasi ini disediakan "sebagaimana adanya" tanpa jaminan apa pun, baik tersurat maupun tersirat. Kami tidak menjamin bahwa aplikasi akan bebas dari kesalahan atau beroperasi tanpa gangguan.</li>
+                    <li>**Batasan Tanggung Jawab:** Kami tidak bertanggung jawab atas kerugian atau kerusakan apa pun yang timbul dari penggunaan atau ketidakmampuan untuk menggunakan aplikasi ini.</li>
+                    <li>**Perubahan Syarat:** Kami berhak untuk mengubah syarat dan ketentuan ini kapan saja. Perubahan akan berlaku segera setelah diposting di halaman ini.</li>
+                    <li>**Privasi:** Kami tidak mengumpulkan atau menyimpan data pribadi apa pun dari penggunaan aplikasi ini. Semua data yang Anda masukkan bersifat sementara dan hanya ada selama sesi penggunaan Anda.</li>
+                </ul>
+                <p>Dengan terus menggunakan aplikasi ini, Anda mengonfirmasi penerimaan syarat dan ketentuan ini.</p>
+            </div>
+            <div class="flex justify-center mt-6">
+                <button id="closeTermsPopup" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const nameInput = document.getElementById('nameInput');
+        const winnerPopup = document.getElementById('winnerPopup');
+        const winnerName = document.getElementById('winnerName');
+        const closePopup = document.getElementById('closePopup');
+        const removeWinnerBtn = document.getElementById('removeWinnerBtn');
+        const spinTimeSelect = document.getElementById('spinTimeSelect');
+        const winnerList = document.getElementById('winnerList');
+        const backgroundImageInput = document.getElementById('backgroundImageInput');
+        const clearWinnerListBtn = document.getElementById('clearWinnerListBtn');
+        const restoreWinnersBtn = document.getElementById('restoreWinnersBtn');
+
+        // New DOM elements for FAQ and Terms & Conditions
+        const faqLink = document.getElementById('faqLink');
+        const termsLink = document.getElementById('termsLink');
+        const faqPopup = document.getElementById('faqPopup');
+        const termsPopup = document.getElementById('termsPopup');
+        const closeFaqPopup = document.getElementById('closeFaqPopup');
+        const closeTermsPopup = document.getElementById('closeTermsPopup');
+
+
+        // --- App State ---
+        let names = [
+            "Ali", "Beatriz", "Charles", "Diya",
+            "Eric", "Fatima", "Gabriel", "Hanna"
+        ];
+        let winners = [];
+        const wheelColors = [
+            "#ef4444", "#f97316", "#f59e0b", "#eab308",
+            "#84cc16", "#22c55e", "#10b981", "#14b8a6",
+            "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1",
+            "#8b5cf6", "#a855f7", "#d946ef", "#ec4899"
+        ];
+
+        let startAngle = 0;
+        let arc = Math.PI / (names.length / 2);
+        let spinTimeout = null;
+        let spinAngleStart = 0;
+        let spinTime = 0;
+        let spinTimeTotal = 0;
+        let isSpinning = false;
+        let lastWinner = null;
+        let idleSpinSpeed = 0.001; // Kecepatan putaran saat siaga (lebih kecil lebih lambat)
+        let idleSpinAnimationId = null; // ID animasi untuk putaran siaga
+        let backgroundImage = new Image(); // Objek gambar untuk latar belakang
+        backgroundImage.src = ''; // Default kosong
+
+        // --- Core Functions ---
+
+        function drawWheel() {
+            // Fixed wheel size at 850px as requested
+            const currentWheelSize = 850; 
+            canvas.width = currentWheelSize;
+            canvas.height = currentWheelSize;
+
+            // Menghitung radius, memastikan selalu positif
+            const outsideRadius = Math.max(1, currentWheelSize / 2 - 25); // Memastikan radius positif
+            const insideRadius = Math.max(1, outsideRadius * 0.3); // Memastikan radius positif
+            
+            // Radius awal untuk teks, lebih dekat ke bagian dalam roda
+            const textStartRadius = insideRadius + 20; // Sesuaikan nilai ini sesuai kebutuhan
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#27272a';
+            ctx.lineWidth = 3;
+            // Ukuran font disesuaikan agar sesuai dengan ukuran roda
+            ctx.font = `bold ${Math.max(12, currentWheelSize / 20)}px Inter, sans-serif`;
+
+            if (names.length === 0) {
+                 ctx.fillStyle = '#f1f5f9';
+                 ctx.beginPath();
+                 ctx.arc(centerX, centerY, outsideRadius, 0, 2 * Math.PI, false);
+                 ctx.fill();
+                 ctx.save();
+                 ctx.fillStyle = "#1e293b";
+                 ctx.textAlign = "center";
+                 ctx.textBaseline = "middle";
+                 ctx.font = 'bold 20px Inter, sans-serif';
+                 ctx.fillText("Tambahkan nama", centerX, centerY - 15);
+                 ctx.fillText("untuk memulai!", centerX, centerY + 15);
+                 ctx.restore();
+                 return;
+            }
+
+            arc = 2 * Math.PI / names.length;
+
+            for (let i = 0; i < names.length; i++) {
+                const angle = startAngle + i * arc;
+                ctx.fillStyle = wheelColors[i % wheelColors.length];
+
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, outsideRadius, angle, angle + arc, false);
+                ctx.arc(centerX, centerY, insideRadius, angle + arc, angle, true);
+                ctx.stroke();
+                ctx.fill();
+
+                ctx.save();
+                ctx.fillStyle = "white";
+                ctx.shadowColor = "rgba(0,0,0,0.4)";
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                ctx.shadowBlur = 3;
+                
+                // Terjemahkan ke titik awal teks di sepanjang sudut segmen
+                ctx.translate(centerX + Math.cos(angle + arc / 2) * textStartRadius,
+                              centerY + Math.sin(angle + arc / 2) * textStartRadius);
+                
+                // Putar kanvas agar teks sejajar dengan radius, menunjuk ke luar
+                ctx.rotate(angle + arc / 2);
+
+                // Atur perataan teks untuk menggambar
+                ctx.textAlign = "left"; // Sejajarkan teks ke kiri dari titik awal
+                ctx.textBaseline = "middle"; // Pusatkan teks secara vertikal pada garis
+
+                let text = names[i];
+                // Lebar maksimum untuk teks, dari titik awalnya hingga radius luar
+                const maxTextWidth = outsideRadius - textStartRadius - 10; // Beri sedikit padding
+
+                // Potong teks jika terlalu panjang
+                let originalText = text; // Simpan teks asli untuk perbandingan
+                let measuredWidth = ctx.measureText(text).width;
+                while (measuredWidth > maxTextWidth && text.length > 3) {
+                    text = text.substring(0, text.length - 1);
+                    measuredWidth = ctx.measureText(text + '...').width;
+                }
+                if (text.length < originalText.length) { // Hanya tambahkan elipsis jika teks dipotong
+                    text += '...';
+                }
+
+                ctx.fillText(text, 0, 0); // Gambar teks pada origin baru (0,0) dari konteks yang diterjemahkan/diputar
+                ctx.restore();
+            }
+
+            // Gambar bagian tengah roda
+            ctx.fillStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, insideRadius, 0, 2 * Math.PI, false);
+            ctx.fill();
+
+            // Tambahkan gambar latar belakang jika ada
+            if (backgroundImage.src && backgroundImage.complete) {
+                ctx.save();
+                ctx.clip(); // Potong gambar agar sesuai dengan lingkaran
+                ctx.drawImage(backgroundImage, centerX - insideRadius, centerY - insideRadius, insideRadius * 2, insideRadius * 2);
+                ctx.restore();
+            }
+
+            ctx.save();
+            ctx.fillStyle = "#1e293b";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = 'bold 30px Inter, sans-serif';
+            // Removed "Click for" and "Spin" text from the center
+            ctx.restore();
+        }
+
+        function spin() {
+            if (isSpinning || names.length < 2) return;
+            stopIdleSpin(); // Hentikan putaran siaga saat berputar
+            isSpinning = true;
+            spinAngleStart = Math.random() * 10 + 10;
+            spinTime = 0;
+            spinTimeTotal = parseInt(spinTimeSelect.value);
+            rotateWheel();
+        }
+
+        function rotateWheel() {
+            spinTime += 30;
+            if (spinTime >= spinTimeTotal) {
+                stopRotateWheel();
+                return;
+            }
+            const spinAngle = spinAngleStart - easeOut(spinTime, 0, spinAngleStart, spinTimeTotal);
+            startAngle += (spinAngle * Math.PI / 180);
+            drawWheel();
+            spinTimeout = requestAnimationFrame(rotateWheel);
+        }
+
+        function stopRotateWheel() {
+            cancelAnimationFrame(spinTimeout);
+            const degrees = startAngle * 180 / Math.PI + 90;
+            const arcd = arc * 180 / Math.PI;
+            const index = Math.floor((360 - degrees % 360) / arcd);
+            
+            isSpinning = false;
+            showWinner(names[index]);
+            startIdleSpin(); // Mulai putaran siaga lagi setelah berhenti
+        }
+        
+        function easeOut(t, b, c, d) {
+            const ts = (t /= d) * t;
+            const tc = ts * t;
+            return b + c * (tc + -3 * ts + 3 * t);
+        }
+
+        function showWinner(winner) {
+            lastWinner = winner;
+            winners.push(winner); // Add winner to the history list
+            updateWinnerList(); // Update the displayed list
+            winnerName.textContent = winner;
+            winnerPopup.classList.remove('hidden');
+            startFireworks();
+        }
+
+        function hideWinner() {
+            winnerPopup.classList.add('hidden');
+            stopFireworks();
+        }
+
+        function removeWinnerAndClose() {
+            if (!lastWinner) return;
+            const winnerIndex = names.indexOf(lastWinner);
+            if (winnerIndex > -1) {
+                names.splice(winnerIndex, 1);
+            }
+            nameInput.value = names.join('\n');
+            drawWheel();
+            hideWinner();
+        }
+        
+        function updateWinnerList() {
+            winnerList.innerHTML = ''; // Clear the list first
+            winners.forEach(winner => {
+                const li = document.createElement('li');
+                li.textContent = winner;
+                winnerList.appendChild(li);
+            });
+        }
+
+        function updateNames() {
+            const newNames = nameInput.value.split('\n').filter(name => name.trim() !== '');
+            if (newNames.length > 0) {
+                names = newNames;
+            } else {
+                names = [];
+            }
+            startAngle = 0;
+            drawWheel();
+        }
+
+        // --- New Winner List Management Functions ---
+        function clearWinnerList() {
+            winners = [];
+            updateWinnerList();
+        }
+
+        function restoreWinnersToNames() {
+            if (winners.length === 0) return; // No winners to restore
+
+            // Add unique winners back to the names list
+            winners.forEach(winner => {
+                if (!names.includes(winner)) {
+                    names.push(winner);
+                }
+            });
+
+            // Update the nameInput textarea with the modified 'names' array
+            nameInput.value = names.join('\n');
+
+            winners = []; // Clear winners list
+            updateWinnerList(); // Update winner list display
+            drawWheel(); // Redraw the wheel with the updated names.
+        }
+
+
+        // --- Idle Spin Logic ---
+        function idleSpin() {
+            if (!isSpinning) {
+                startAngle += idleSpinSpeed;
+                drawWheel();
+            }
+            idleSpinAnimationId = requestAnimationFrame(idleSpin);
+        }
+
+        function startIdleSpin() {
+            if (!idleSpinAnimationId) {
+                idleSpin();
+            }
+        }
+
+        function stopIdleSpin() {
+            if (idleSpinAnimationId) {
+                cancelAnimationFrame(idleSpinAnimationId);
+                idleSpinAnimationId = null;
+            }
+        }
+
+        // --- Fireworks Logic ---
+        const fireworksCanvas = document.getElementById('fireworksCanvas');
+        const fireworksCtx = fireworksCanvas.getContext('2d');
+        let particles = [];
+        let fireworksAnimationId = null;
+
+        function setupFireworksCanvas() {
+            fireworksCanvas.width = window.innerWidth;
+            fireworksCanvas.height = window.innerHeight;
+        }
+
+        function createParticle(x, y) {
+            const count = 100;
+            const angleIncrement = (Math.PI * 2) / count;
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x, y: y, angle: i * angleIncrement,
+                    speed: Math.random() * 4 + 1, friction: 0.98,
+                    gravity: 0.05, hue: Math.floor(Math.random() * 360),
+                    alpha: 1, decay: Math.random() * 0.015 + 0.015
+                });
+            }
+        }
+
+        function animateFireworks() {
+            fireworksCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            fireworksCtx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+            particles.forEach((p, index) => {
+                p.x += Math.cos(p.angle) * p.speed;
+                p.y += Math.sin(p.angle) * p.speed + p.gravity;
+                p.speed *= p.friction;
+                p.alpha -= p.decay;
+                if (p.alpha <= p.decay) {
+                    particles.splice(index, 1);
+                } else {
+                    fireworksCtx.beginPath();
+                    fireworksCtx.arc(p.x, p.y, 2, 0, Math.PI * 2, false);
+                    fireworksCtx.fillStyle = `hsla(${p.hue}, 100%, 50%, ${p.alpha})`;
+                    fireworksCtx.fill();
+                }
+            });
+            fireworksAnimationId = requestAnimationFrame(animateFireworks);
+        }
+        
+        let fireworksInterval;
+        function startFireworks() {
+            setupFireworksCanvas();
+            if(fireworksAnimationId) cancelAnimationFrame(fireworksAnimationId);
+            animateFireworks();
+            fireworksInterval = setInterval(() => {
+                 createParticle(Math.random() * fireworksCanvas.width, Math.random() * fireworksCanvas.height);
+            }, 600);
+        }
+
+        function stopFireworks() {
+            if(fireworksAnimationId) cancelAnimationFrame(fireworksAnimationId);
+            clearInterval(fireworksInterval);
+            particles = [];
+            fireworksCtx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+        }
+
+        // --- Event Listeners ---
+        canvas.addEventListener('click', spin);
+        closePopup.addEventListener('click', hideWinner);
+        removeWinnerBtn.addEventListener('click', removeWinnerAndClose);
+        winnerPopup.addEventListener('click', (e) => {
+            if (e.target === winnerPopup) {
+                hideWinner();
+            }
+        });
+        nameInput.addEventListener('input', updateNames);
+        backgroundImageInput.addEventListener('change', () => { // Load image on input change
+            backgroundImage.src = backgroundImageInput.value;
+            backgroundImage.onload = () => {
+                drawWheel(); // Redraw wheel after image loads
+            };
+            backgroundImage.onerror = () => { // Handle image loading errors
+                console.error("Failed to load background image.");
+                backgroundImage.src = ''; // Clear invalid image
+                drawWheel(); // Redraw without the image
+            };
+        });
+        window.addEventListener('resize', setupFireworksCanvas);
+
+        // New event listeners for winner list management
+        clearWinnerListBtn.addEventListener('click', clearWinnerList);
+        restoreWinnersBtn.addEventListener('click', restoreWinnersToNames);
+
+        // New event listeners for FAQ and Terms & Conditions
+        faqLink.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent default link behavior
+            faqPopup.classList.remove('hidden');
+        });
+        closeFaqPopup.addEventListener('click', () => {
+            faqPopup.classList.add('hidden');
+        });
+        faqPopup.addEventListener('click', (e) => { // Close when clicking outside content
+            if (e.target === faqPopup) {
+                faqPopup.classList.add('hidden');
+            }
+        });
+
+        termsLink.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent default link behavior
+            termsPopup.classList.remove('hidden');
+        });
+        closeTermsPopup.addEventListener('click', () => {
+            termsPopup.classList.add('hidden');
+        });
+        termsPopup.addEventListener('click', (e) => { // Close when clicking outside content
+            if (e.target === termsPopup) {
+                termsPopup.classList.add('hidden');
+            }
+        });
+
+
+        // --- Initial Load ---
+        nameInput.value = names.join('\n');
+        drawWheel();
+        startIdleSpin(); // Mulai putaran siaga saat aplikasi dimuat
+        
+    </script>
+</body>
+</html>
